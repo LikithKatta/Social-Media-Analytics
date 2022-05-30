@@ -12,6 +12,7 @@ project = "Social" # don't edit this
 
 import pandas as pd
 import nltk
+from collections import Counter
 nltk.download('vader_lexicon', quiet=True)
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import matplotlib.pyplot as plt; plt.rcdefaults()
@@ -25,7 +26,8 @@ Parameters: str
 Returns: dataframe
 '''
 def makeDataFrame(filename):
-    return
+    df = pd.read_csv(filename)
+    return df
 
 
 '''
@@ -35,7 +37,12 @@ Parameters: str
 Returns: str
 '''
 def parseName(fromString):
-    return
+    s1 = " "
+    s2 = " "
+    line = fromString.split( " (")
+    s2 = line[0]
+    s1 = s2.split(": ")
+    return s1[1]
 
 
 '''
@@ -45,7 +52,12 @@ Parameters: str
 Returns: str
 '''
 def parsePosition(fromString):
-    return
+    s1 = " "
+    s2 = " "
+    line = fromString.split(" (")
+    s2 = line[1]
+    s1 = s2.split(" ")
+    return s1[0]
 
 
 '''
@@ -55,7 +67,16 @@ Parameters: str
 Returns: str
 '''
 def parseState(fromString):
-    return
+    place = " "
+    s1 = " "
+    s2 = " "
+    s3 = " "
+    line = fromString.split(" (")
+    s1 = line[1]
+    s2 = s1.split("from ")
+    s3 = s2[1]
+    place = s3.split(")")
+    return place[0]
 
 
 '''
@@ -65,7 +86,19 @@ Parameters: str
 Returns: list of strs
 '''
 def findHashtags(message):
-    return
+    hash_lst = []
+    no = message.count("#")
+    string = message.split('#')
+    for i in string[1:len(string)]:
+        name = ''
+        for j in i:
+            if j not in endChars:
+                name += j
+            else:
+                break
+        name = '#' + name
+        hash_lst.append(name)
+    return hash_lst
 
 
 '''
@@ -75,7 +108,8 @@ Parameters: dataframe ; str
 Returns: str
 '''
 def getRegionFromState(stateDf, state):
-    return
+    row = stateDf.loc[stateDf['state'] == state, 'region']
+    return row.values[0]
 
 
 '''
@@ -85,7 +119,32 @@ Parameters: dataframe ; dataframe
 Returns: None
 '''
 def addColumns(data, stateDf):
-    return
+    names=[]
+    positions=[]
+    states=[]
+    regions=[]
+    hashtags=[]
+    for index,row in data.iterrows():
+        l = data["label"].loc[index]
+        name=parseName(l)
+        position=parsePosition(l)
+        state=parseState(l)
+        region=getRegionFromState(stateDf,state)
+        t = data["text"].loc[index]
+        hashtag=findHashtags(t)
+        names.append(name)
+        positions.append(position)
+        states.append(state)
+        regions.append(region)
+        hashtags.append(hashtag)
+    data["name"]=names
+    data["position"]=positions
+    data["state"]=states
+    data["region"]=regions
+    data["hashtags"]=hashtags
+    return None
+
+
 
 
 ### PART 2 ###
@@ -98,7 +157,13 @@ Returns: str
 '''
 def findSentiment(classifier, message):
     score = classifier.polarity_scores(message)['compound']
-    return
+    if score < -0.1:
+        text = "negative"
+    elif (score > 0.1):
+        text = "positive"
+    else:
+        text = "neutral"
+    return text
 
 
 '''
@@ -109,7 +174,12 @@ Returns: None
 '''
 def addSentimentColumn(data):
     classifier = SentimentIntensityAnalyzer()
-    return
+    sentiments = []
+    for index , row in data.iterrows():
+        response = row["text"]
+        sentiments.append(findSentiment(classifier,response))
+    data["sentiment"] = sentiments
+    return None
 
 
 '''
@@ -119,7 +189,19 @@ Parameters: dataframe ; str ; str
 Returns: dict mapping strs to ints
 '''
 def getDataCountByState(data, colName, dataToCount):
-    return
+    dictionary = {}
+    for index, row in data.iterrows():
+        if ((len(colName)==0 and len(dataToCount) == 0)) :
+            state = row['state']
+            if state  not in dictionary:
+                dictionary[state] = 0
+            dictionary[state] += 1
+        elif(row[colName] == dataToCount):
+            state = row['state']
+            if state  not in dictionary:
+                dictionary[state] = 0
+            dictionary[state] += 1
+    return dictionary
 
 
 '''
@@ -129,7 +211,16 @@ Parameters: dataframe ; str
 Returns: dict mapping strs to (dicts mapping strs to ints)
 '''
 def getDataForRegion(data, colName):
-    return
+    dictionary = {}
+    for index, row in data.iterrows():
+        if row['region'] not in dictionary:
+            dictionary[row['region']] = {}
+        if row[colName] not in dictionary[row['region']]:
+            dictionary[row['region']][row[colName]] = 0
+        dictionary[row['region']][row[colName]] += 1
+    return dictionary
+
+
 
 
 '''
@@ -139,7 +230,15 @@ Parameters: dataframe
 Returns: dict mapping strs to ints
 '''
 def getHashtagRates(data):
-    return
+    dictionary = {}
+    for index,row in data.iterrows():
+        lst = row["hashtags"]
+        for tag in lst:
+            if tag not in dictionary:
+                dictionary[tag] = 0
+            dictionary[tag] += 1
+
+    return dictionary
 
 
 '''
@@ -149,7 +248,17 @@ Parameters: dict mapping strs to ints ; int
 Returns: dict mapping strs to ints
 '''
 def mostCommonHashtags(hashtags, count):
-    return
+    dictionary = {}
+    while(len(dictionary)<count):
+        maximum = 0
+        for value in hashtags:
+            if value not in dictionary:
+                if(hashtags[value]>maximum):
+                    maximum = hashtags[value]
+                    high = value
+        dictionary[high] = maximum
+    return dictionary
+
 
 
 '''
@@ -159,7 +268,19 @@ Parameters: dataframe ; str
 Returns: float
 '''
 def getHashtagSentiment(data, hashtag):
-    return
+    sum_sentiments = 0
+    total = 0
+    for index, row in data.iterrows():
+        msg = row['text']
+        if hashtag in msg:
+            total +=1
+            if row['sentiment'] == 'positive':
+                sum_sentiments += 1
+            if row['sentiment'] == 'negative':
+                sum_sentiments -= 1
+    return (sum_sentiments/total)
+
+
 
 
 ### PART 3 ###
@@ -172,7 +293,17 @@ Returns: None
 '''
 def graphStateCounts(stateCounts, title):
     import matplotlib.pyplot as plt
+    lst = list(stateCounts.items())
+    for key,value in lst:
+        labels = key
+        yValues = value
+        plt.bar(labels,yValues,color='blue')
+        plt.xlabel(title,loc='center')
+        plt.xticks(rotation="vertical")
+        plt.title(title)
+    plt.show()
     return
+
 
 
 '''
@@ -182,6 +313,10 @@ Parameters: dict mapping strs to ints ; dict mapping strs to ints ; int ; str
 Returns: None
 '''
 def graphTopNStates(stateCounts, stateFeatureCounts, n, title):
+    featurerate = {}
+    for i in stateFeatureCounts:
+        featurerate[i] = (stateFeatureCounts[i] / stateCounts[i])
+    graphStateCounts(dict(Counter(featurerate).most_common(5)), "Top n Feature")
     return
 
 
@@ -192,7 +327,27 @@ Parameters: dict mapping strs to (dicts mapping strs to ints) ; str
 Returns: None
 '''
 def graphRegionComparison(regionDicts, title):
-    return
+    features = []
+    regions = []
+    region_feature = []
+    for i in regionDicts:
+        for j in regionDicts[i]:
+            if i not in features:
+                features.append(j)
+    for i in regionDicts.keys():
+        regions.append(i)
+    for i in regionDicts:
+        list = []
+        for j in features:
+            count = 0
+            for k in regionDicts[i]:
+                if j==k:
+                    count += regionDicts[i][k]
+            list.append(count)
+        region_feature.append(list)
+    sideBySideBarPlots(features, regions, region_feature, 'Region Comparison')
+    return None
+
 
 
 '''
@@ -202,7 +357,20 @@ Parameters: dataframe
 Returns: None
 '''
 def graphHashtagSentimentByFrequency(data):
-    return
+    hash = getHashtagRates(data)
+    hashtags = []
+    frequencies = []
+    sentiment_scores = []
+    dictionary = mostCommonHashtags(hash, 50)
+    for i in dictionary:
+        sentiment_score = getHashtagSentiment(data, i)
+        hashtags.append(i)
+        frequencies.append(dictionary[i])
+        sentiment_scores.append(sentiment_score)
+    scatterPlot(frequencies, sentiment_scores, hashtags, 'Hashtags by Frequency & Sentiments')
+    return None
+
+
 
 
 #### PART 3 PROVIDED CODE ####
@@ -262,17 +430,18 @@ def scatterPlot(xValues, yValues, labels, title):
 
 # This code runs the test cases to check your work
 if __name__ == "__main__":
-    print("\n" + "#"*15 + " WEEK 1 TESTS " +  "#" * 16 + "\n")
-    test.week1Tests()
-    print("\n" + "#"*15 + " WEEK 1 OUTPUT " + "#" * 15 + "\n")
-    test.runWeek1()
+    # print("\n" + "#"*15 + " WEEK 1 TESTS " +  "#" * 16 + "\n")
+    # test.week1Tests()
+    # print("\n" + "#"*15 + " WEEK 1 OUTPUT " + "#" * 15 + "\n")
+    # test.runWeek1()
+    
 
-    ## Uncomment these for Week 2 ##
-    """print("\n" + "#"*15 + " WEEK 2 TESTS " +  "#" * 16 + "\n")
-    test.week2Tests()
-    print("\n" + "#"*15 + " WEEK 2 OUTPUT " + "#" * 15 + "\n")
-    test.runWeek2()"""
+    # ## Uncomment these for Week 2 ##
+    # print("\n" + "#"*15 + " WEEK 2 TESTS " +  "#" * 16 + "\n")
+    # test.week2Tests()
+    # print("\n" + "#"*15 + " WEEK 2 OUTPUT " + "#" * 15 + "\n")
+    # test.runWeek2()
 
     ## Uncomment these for Week 3 ##
-    """print("\n" + "#"*15 + " WEEK 3 OUTPUT " + "#" * 15 + "\n")
-    test.runWeek3()"""
+    print("\n" + "#"*15 + " WEEK 3 OUTPUT " + "#" * 15 + "\n")
+    test.runWeek3()
